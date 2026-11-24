@@ -75,6 +75,12 @@ npm run tauri build
 └── vite.config.ts
 ```
 
+## recent
+
+- split panes: split right/down, draggable dividers, per-pane PTY
+- profiles: launch profiles from command palette, profiles JSON in settings
+- quake mode: global hotkey toggle (`Ctrl+Shift+``) with top-drop positioning
+
 ## contributing
 
 want to help make the sickest terminal on windows? hell yeah.

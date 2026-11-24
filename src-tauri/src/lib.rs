@@ -368,6 +368,16 @@ fn quake_toggle(app: AppHandle) -> Result<(), String> {
         if visible {
             let _ = win.hide();
         } else {
+            if let Ok(Some(monitor)) = win.current_monitor() {
+                let size = monitor.size();
+                let pos = monitor.position();
+                let width = (size.width as f64 * 0.96) as u32;
+                let height = (size.height as f64 * 0.55) as u32;
+                let x = pos.x + ((size.width as i32 - width as i32) / 2);
+                let y = pos.y;
+                let _ = win.set_size(tauri::Size::Physical(tauri::PhysicalSize { width, height }));
+                let _ = win.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }));
+            }
             let _ = win.show();
             let _ = win.set_focus();
         }
