@@ -39,6 +39,21 @@ struct PtyExit {
     code: Option<u32>,
 }
 
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(default, rename_all = "camelCase")]
+struct SessionTab {
+    shell: String,
+    title: String,
+    cwd: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(default, rename_all = "camelCase")]
+struct SessionState {
+    tabs: Vec<SessionTab>,
+    active_index: usize,
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(default, rename_all = "camelCase")]
 struct UltitermConfig {
@@ -54,6 +69,8 @@ struct UltitermConfig {
     opacity: f32,
     vibrancy: String,
     scrollback: u32,
+    restore_session: bool,
+    last_session: SessionState,
     keybinds: HashMap<String, String>,
 }
 
@@ -82,6 +99,8 @@ impl Default for UltitermConfig {
             opacity: 1.0,
             vibrancy: "none".into(),
             scrollback: 5000,
+            restore_session: true,
+            last_session: SessionState::default(),
             keybinds,
         }
     }
@@ -186,6 +205,14 @@ fn config_path_get(state: State<'_, ConfigState>) -> String {
 #[tauri::command]
 fn config_save(state: State<'_, ConfigState>, config: UltitermConfig) -> Result<(), String> {
     let raw = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
+    fs::write(&state.path, raw).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn session_save(state: State<'_, ConfigState>, session: SessionState) -> Result<(), String> {
+    let mut cfg = load_or_create_config(&state.path);
+    cfg.last_session = session;
+    let raw = serde_json::to_string_pretty(&cfg).map_err(|e| e.to_string())?;
     fs::write(&state.path, raw).map_err(|e| e.to_string())
 }
 
@@ -309,7 +336,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             pty_create, pty_write, pty_resize, pty_kill,
-            config_get, config_save, config_path_get, shells_list, window_set_vibrancy
+            config_get, config_save, config_path_get, shells_list, window_set_vibrancy, session_save
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

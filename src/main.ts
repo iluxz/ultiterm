@@ -11,10 +11,12 @@ import "@xterm/xterm/css/xterm.css";
 type PtyOutput = { id: string; data: string };
 type PtyExit = { id: string; code?: number | null };
 type ShellInfo = { id: string; name: string; path: string };
+type SessionTab = { shell: string; title: string; cwd?: string | null };
+type SessionState = { tabs: SessionTab[]; activeIndex: number };
 type Config = {
   defaultShell: string; fontSize: number; fontFamily: string; cursorStyle: "block" | "underline" | "bar";
   cursorBlink: boolean; padding: number; background: string; foreground: string; accent: string; opacity: number; vibrancy: string;
-  scrollback: number; keybinds: Record<string, string>;
+  scrollback: number; restoreSession: boolean; lastSession: SessionState; keybinds: Record<string, string>;
 };
 type Tab = { id: string; title: string; shellPath: string; term: Terminal; fit: FitAddon; search: SearchAddon; container: HTMLDivElement; disposed: boolean };
 
@@ -94,6 +96,13 @@ function applyConfig(cfg: Config) {
 
 function activeTab() { return activeId ? tabs.get(activeId) : undefined; }
 
+function persistSession() {
+  if (!config) return;
+  const list = [...tabs.values()].map(t => ({ shell: t.shellPath, title: t.title, cwd: null }));
+  const activeIndex = Math.max(0, [...tabs.keys()].indexOf(activeId || ""));
+  invoke("session_save", { session: { tabs: list, activeIndex } }).catch(() => {});
+}
+
 function renderTabs() {
   tabsEl.innerHTML = "";
   for (const tab of tabs.values()) {
@@ -112,6 +121,7 @@ function renderTabs() {
     el.append(label, close);
     tabsEl.appendChild(el);
   }
+  persistSession();
 }
 
 function activateTab(id: string) {
@@ -270,6 +280,7 @@ function openSettings() {
   (must<HTMLInputElement>("#cfg-opacity")).value = String(config.opacity ?? 1);
   (must<HTMLSelectElement>("#cfg-vibrancy")).value = config.vibrancy || "none";
   (must<HTMLInputElement>("#cfg-scrollback")).value = String(config.scrollback ?? 5000);
+  (must<HTMLSelectElement>("#cfg-restore")).value = String(config.restoreSession ?? true);
   settingsModal.classList.remove("hidden");
 }
 function closeSettings() { settingsModal.classList.add("hidden"); activeTab()?.term.focus(); }
@@ -289,6 +300,7 @@ async function saveSettings() {
     opacity: Math.min(1, Math.max(0.2, Number((must<HTMLInputElement>("#cfg-opacity")).value) || 1)),
     vibrancy: (must<HTMLSelectElement>("#cfg-vibrancy")).value || "none",
     scrollback: Math.min(50000, Math.max(500, Number((must<HTMLInputElement>("#cfg-scrollback")).value) || 5000)),
+    restoreSession: (must<HTMLSelectElement>("#cfg-restore")).value === "true",
   };
   await invoke("config_save", { config: next });
   applyConfig(next);
@@ -367,7 +379,17 @@ async function boot() {
   findInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); findNext(e.shiftKey ? -1 : 1); } });
   wireKeyboard();
 
-  try { await createTab(); }
+  try {
+    const restore = config.restoreSession && config.lastSession?.tabs?.length;
+    if (restore) {
+      for (const t of config.lastSession.tabs) await createTab(t.shell || config.defaultShell);
+      const ids = [...tabs.keys()];
+      const target = ids[Math.min(config.lastSession.activeIndex || 0, ids.length - 1)];
+      if (target) activateTab(target);
+    } else {
+      await createTab();
+    }
+  }
   catch (e) {
     setStatus(String(e), "err");
     root.innerHTML = `<div style="padding:18px;color:#fda4af;font-family:Consolas,monospace;white-space:pre-wrap">failed to start pty\n${String(e)}</div>`;
