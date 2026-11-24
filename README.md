@@ -26,7 +26,7 @@ most terminals make you pick: pretty but heavy, fast but boring, or customizable
 
 ## project status
 
-🚧 **super early / scaffolding**. repo just got spun up - core terminal engine, pty wiring, tabs/panes, config system, and customization are all on deck.
+**super early / scaffolding**. repo just got spun up - core terminal engine, pty wiring, tabs/panes, config system, and customization are all on deck.
 
 ## planned features
 
@@ -92,4 +92,5 @@ if you find a security issue, **don’t open a public issue**. see [SECURITY.md]
 ## license
 
 [MIT](LICENSE) © lux
+
 
