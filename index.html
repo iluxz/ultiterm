@@ -13,34 +13,34 @@
         <div class="brand">
           <span class="brand-mark">U</span>
           <span class="brand-name">ultiterm</span>
-          <span class="brand-tag">windows-first / lightweight / yours</span>
         </div>
+        <div id="tabs" class="tab-strip"></div>
         <div class="title-actions">
-          <button id="new-tab" class="ghost-btn" title="New terminal">+ tab</button>
+          <select id="shell-select" class="shell-select" title="Shell for new tabs"></select>
+          <button id="new-tab" class="ghost-btn" title="New terminal (Ctrl+T)">+</button>
+          <button id="settings-btn" class="ghost-btn" title="Settings (Ctrl+,)">⚙</button>
           <div class="status-pill"><span id="status-dot" class="dot"></span><span id="status-text">booting</span></div>
         </div>
       </header>
-
-      <div class="workspace">
-        <aside class="sidebar">
-          <div class="side-block">
-            <div class="side-label">sessions</div>
-            <div id="tabs" class="tabs"></div>
+      <main class="terminal-shell">
+        <div id="terminal-root" class="terminal-root"></div>
+      </main>
+      <div id="settings-modal" class="modal hidden">
+        <div class="modal-card">
+          <div class="modal-head"><div><div class="modal-title">settings</div><div id="config-path" class="modal-sub"></div></div><button id="settings-close" class="ghost-btn">×</button></div>
+          <div class="settings-grid">
+            <label>default shell<select id="cfg-shell"></select></label>
+            <label>font size<input id="cfg-font-size" type="number" min="10" max="32" step="1"></label>
+            <label class="span2">font family<input id="cfg-font-family" type="text"></label>
+            <label>cursor<select id="cfg-cursor"><option value="bar">bar</option><option value="block">block</option><option value="underline">underline</option></select></label>
+            <label>cursor blink<select id="cfg-blink"><option value="true">on</option><option value="false">off</option></select></label>
+            <label>padding<input id="cfg-padding" type="number" min="0" max="40" step="1"></label>
+            <label>accent<input id="cfg-accent" type="color"></label>
+            <label>background<input id="cfg-bg" type="color"></label>
+            <label>foreground<input id="cfg-fg" type="color"></label>
           </div>
-          <div class="side-block side-info">
-            <div class="side-label">ultiterm</div>
-            <p>insane customization starts here. this is the base shell: tauri + webview2 + xterm + conpty.</p>
-            <p class="muted">next up: themes, keybinds, splits, profiles, shaders, config hot-reload.</p>
-          </div>
-        </aside>
-
-        <main class="terminal-shell">
-          <div class="terminal-head">
-            <div id="tab-title" class="tab-title">terminal</div>
-            <div class="terminal-meta" id="term-meta">0x0</div>
-          </div>
-          <div id="terminal-root" class="terminal-root"></div>
-        </main>
+          <div class="modal-actions"><button id="settings-save" class="primary-btn">save config</button><button id="settings-reload" class="ghost-btn wide">reload</button></div>
+        </div>
       </div>
     </div>
   </body>
