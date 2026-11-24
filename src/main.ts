@@ -281,6 +281,7 @@ function paletteActions(): PaletteAction[] {
     { name: "Paste Clipboard", meta: binds.paste || "Ctrl+Shift+V", run: pasteClipboard },
     { name: "Open Settings", meta: binds.settings || "Ctrl+,", run: openSettings },
     { name: "Open Config File", meta: "action", run: openConfigFile },
+    { name: "Toggle Quake Mode", meta: "Ctrl+Shift+`", run: () => invoke("quake_toggle").catch(() => {}) },
     { name: "Reload Config", meta: "action", run: async () => { config = await invoke<Config>("config_get"); applyConfig(config); setStatus("config reloaded", "ok"); } },
   ];
 }

@@ -10,6 +10,7 @@ use std::{
     thread,
 };
 use tauri::{AppHandle, Emitter, Manager, State};
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
 struct PtySession {
     writer: Box<dyn Write + Send>,
@@ -342,11 +343,24 @@ fn start_config_watcher(app: AppHandle, path: PathBuf) -> Option<RecommendedWatc
         }
     }).ok()?;
     let _ = watcher.watch(&path, RecursiveMode::NonRecursive);
-    // also watch parent dir for editors that replace file
     if let Some(parent) = path.parent() {
         let _ = watcher.watch(parent, RecursiveMode::NonRecursive);
     }
     Some(watcher)
+}
+
+#[tauri::command]
+fn quake_toggle(app: AppHandle) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window("main") {
+        let visible = win.is_visible().unwrap_or(true);
+        if visible {
+            let _ = win.hide();
+        } else {
+            let _ = win.show();
+            let _ = win.set_focus();
+        }
+    }
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -354,16 +368,30 @@ pub fn run() {
     tauri::Builder::default()
         .manage(PtyState::default())
         .plugin(tauri_plugin_opener::init())
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, shortcut, event| {
+                    if event.state() == ShortcutState::Pressed {
+                        let quake = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::Backquote);
+                        if shortcut == &quake {
+                            let _ = quake_toggle(app.clone());
+                        }
+                    }
+                })
+                .build(),
+        )
         .setup(|app| {
             let path = config_path(&app.handle())?;
             let _ = load_or_create_config(&path);
             let watcher = start_config_watcher(app.handle().clone(), path.clone());
             app.manage(ConfigState { path, _watcher: Mutex::new(watcher) });
+            let quake = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::Backquote);
+            let _ = app.global_shortcut().register(quake);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             pty_create, pty_write, pty_resize, pty_kill,
-            config_get, config_save, config_path_get, shells_list, window_set_vibrancy, session_save, window_set_always_on_top
+            config_get, config_save, config_path_get, shells_list, window_set_vibrancy, session_save, window_set_always_on_top, quake_toggle
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
