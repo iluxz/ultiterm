@@ -14,10 +14,12 @@ type PtyExit = { id: string; code?: number | null };
 type ShellInfo = { id: string; name: string; path: string };
 type SessionTab = { shell: string; title: string; cwd?: string | null };
 type SessionState = { tabs: SessionTab[]; activeIndex: number };
+type Profile = { name: string; shell: string; cwd: string; args: string; startupCommand: string };
 type Config = {
   defaultShell: string; defaultCwd: string; shellArgs: string; fontSize: number; fontFamily: string; cursorStyle: "block" | "underline" | "bar";
   cursorBlink: boolean; padding: number; background: string; foreground: string; accent: string; opacity: number; vibrancy: string;
-  scrollback: number; restoreSession: boolean; alwaysOnTop: boolean; copyOnSelect: boolean; startupCommand: string; backgroundImage: string; lastSession: SessionState; keybinds: Record<string, string>;
+  scrollback: number; restoreSession: boolean; alwaysOnTop: boolean; copyOnSelect: boolean; startupCommand: string; backgroundImage: string;
+  profiles: Profile[]; lastSession: SessionState; keybinds: Record<string, string>;
 };
 type Tab = { id: string; title: string; shellPath: string; term: Terminal; fit: FitAddon; search: SearchAddon; container: HTMLDivElement; disposed: boolean };
 
@@ -158,7 +160,7 @@ async function closeTab(id: string) {
   } else renderTabs();
 }
 
-async function createTab(shellPath?: string) {
+async function createTab(shellPath?: string, opts?: { cwd?: string | null; args?: string[]; startup?: string; title?: string }) {
   const cfg = config || await invoke<Config>("config_get");
   const shell = shellPath || shellSelect.value || cfg.defaultShell;
   const termBg = cfg.vibrancy && cfg.vibrancy !== "none" ? "rgba(0,0,0,0)" : cfg.background;
@@ -199,10 +201,10 @@ async function createTab(shellPath?: string) {
   });
   container.addEventListener("mousedown", () => term.focus());
 
-  const args = (cfg.shellArgs || "").trim() ? (cfg.shellArgs.match(/(?:[^\s"]+|"[^"]*")+/g) || []).map(s => s.replace(/^"|"$/g, "")) : [];
-  const cwd = (cfg.defaultCwd || "").trim() || null;
+  const args = opts?.args ?? ((cfg.shellArgs || "").trim() ? (cfg.shellArgs.match(/(?:[^\s"]+|"[^"]*")+/g) || []).map(s => s.replace(/^"|"$/g, "")) : []);
+  const cwd = opts?.cwd ?? ((cfg.defaultCwd || "").trim() || null);
   const id = await invoke<string>("pty_create", { cols: term.cols, rows: term.rows, shell, cwd, args });
-  const tab: Tab = { id, title: shellName(shell), shellPath: shell, term, fit, search, container, disposed: false };
+  const tab: Tab = { id, title: opts?.title || shellName(shell), shellPath: shell, term, fit, search, container, disposed: false };
   tabs.set(id, tab);
 
   term.onData((data) => { if (!tab.disposed) invoke("pty_write", { id, data }).catch((e) => setStatus(`write failed: ${String(e)}`, "err")); });
@@ -211,8 +213,9 @@ async function createTab(shellPath?: string) {
   term.onTitleChange((title) => { if (title?.trim()) { tab.title = title.trim().slice(0, 40); renderTabs(); } });
 
   activateTab(id);
-  if (cfg.startupCommand && cfg.startupCommand.trim()) {
-    setTimeout(() => { if (!tab.disposed) invoke("pty_write", { id, data: cfg.startupCommand + "\r" }).catch(() => {}); }, 250);
+  const startup = opts?.startup ?? cfg.startupCommand;
+  if (startup && startup.trim()) {
+    setTimeout(() => { if (!tab.disposed) invoke("pty_write", { id, data: startup + "\r" }).catch(() => {}); }, 250);
   }
   setStatus("connected", "ok");
 }
@@ -282,6 +285,7 @@ function paletteActions(): PaletteAction[] {
     { name: "Open Settings", meta: binds.settings || "Ctrl+,", run: openSettings },
     { name: "Open Config File", meta: "action", run: openConfigFile },
     { name: "Toggle Quake Mode", meta: "Ctrl+Shift+`", run: () => invoke("quake_toggle").catch(() => {}) },
+    ...(config?.profiles || []).map(p => ({ name: `Profile: ${p.name}`, meta: p.shell.split(/[\\/]/).pop() || "shell", run: () => createTab(p.shell, { cwd: p.cwd || null, args: p.args ? (p.args.match(/(?:[^\s"]+|"[^"]*")+/g) || []).map(s=>s.replace(/^"|"$/g,"")) : [], startup: p.startupCommand || "", title: p.name }) })),
     { name: "Reload Config", meta: "action", run: async () => { config = await invoke<Config>("config_get"); applyConfig(config); setStatus("config reloaded", "ok"); } },
   ];
 }

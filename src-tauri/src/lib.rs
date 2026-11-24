@@ -55,6 +55,16 @@ struct SessionState {
     active_index: usize,
 }
 
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(default, rename_all = "camelCase")]
+struct Profile {
+    name: String,
+    shell: String,
+    cwd: String,
+    args: String,
+    startup_command: String,
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(default, rename_all = "camelCase")]
 struct UltitermConfig {
@@ -77,6 +87,7 @@ struct UltitermConfig {
     copy_on_select: bool,
     startup_command: String,
     background_image: String,
+    profiles: Vec<Profile>,
     last_session: SessionState,
     keybinds: HashMap<String, String>,
 }
@@ -117,6 +128,7 @@ impl Default for UltitermConfig {
             copy_on_select: false,
             startup_command: String::new(),
             background_image: String::new(),
+            profiles: Vec::new(),
             last_session: SessionState::default(),
             keybinds,
         }
