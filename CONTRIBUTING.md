@@ -1,4 +1,4 @@
-﻿# contributing to ultiterm
+# contributing to ultiterm
 
 yo, thanks for wanting to help. ultiterm’s early, so there’s lots of room to build cool stuff - but we wanna keep it clean, fast, and not cursed in a bad way.
 

@@ -1,4 +1,4 @@
-﻿# code of conduct
+# code of conduct
 
 ## the short version
 

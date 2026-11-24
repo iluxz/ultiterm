@@ -1,4 +1,4 @@
-﻿# Ultiterm
+# Ultiterm
 
 > a lightweight, insanely customizable, windows-first terminal. no bloat, all control.
 
