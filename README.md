@@ -1,6 +1,6 @@
 ﻿# Ultiterm
 
-> a lightweight, insanely customizable, windows-first terminal. no bloat, all control. 🎛️
+> a lightweight, insanely customizable, windows-first terminal. no bloat, all control.
 
 **ultiterm** is a terminal app built for people who want their terminal to look sick, feel fast, and obey them - not the other way around.
 
@@ -92,3 +92,4 @@ if you find a security issue, **don’t open a public issue**. see [SECURITY.md]
 ## license
 
 [MIT](LICENSE) © lux
+
