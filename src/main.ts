@@ -14,7 +14,7 @@ type ShellInfo = { id: string; name: string; path: string };
 type SessionTab = { shell: string; title: string; cwd?: string | null };
 type SessionState = { tabs: SessionTab[]; activeIndex: number };
 type Config = {
-  defaultShell: string; fontSize: number; fontFamily: string; cursorStyle: "block" | "underline" | "bar";
+  defaultShell: string; defaultCwd: string; shellArgs: string; fontSize: number; fontFamily: string; cursorStyle: "block" | "underline" | "bar";
   cursorBlink: boolean; padding: number; background: string; foreground: string; accent: string; opacity: number; vibrancy: string;
   scrollback: number; restoreSession: boolean; lastSession: SessionState; keybinds: Record<string, string>;
 };
@@ -188,7 +188,9 @@ async function createTab(shellPath?: string) {
   });
   container.addEventListener("mousedown", () => term.focus());
 
-  const id = await invoke<string>("pty_create", { cols: term.cols, rows: term.rows, shell, cwd: null });
+  const args = (cfg.shellArgs || "").trim() ? (cfg.shellArgs.match(/(?:[^\s"]+|"[^"]*")+/g) || []).map(s => s.replace(/^"|"$/g, "")) : [];
+  const cwd = (cfg.defaultCwd || "").trim() || null;
+  const id = await invoke<string>("pty_create", { cols: term.cols, rows: term.rows, shell, cwd, args });
   const tab: Tab = { id, title: shellName(shell), shellPath: shell, term, fit, search, container, disposed: false };
   tabs.set(id, tab);
 
@@ -281,6 +283,8 @@ function openSettings() {
   (must<HTMLSelectElement>("#cfg-vibrancy")).value = config.vibrancy || "none";
   (must<HTMLInputElement>("#cfg-scrollback")).value = String(config.scrollback ?? 5000);
   (must<HTMLSelectElement>("#cfg-restore")).value = String(config.restoreSession ?? true);
+  (must<HTMLInputElement>("#cfg-cwd")).value = config.defaultCwd || "";
+  (must<HTMLInputElement>("#cfg-args")).value = config.shellArgs || "";
   settingsModal.classList.remove("hidden");
 }
 function closeSettings() { settingsModal.classList.add("hidden"); activeTab()?.term.focus(); }
@@ -301,6 +305,8 @@ async function saveSettings() {
     vibrancy: (must<HTMLSelectElement>("#cfg-vibrancy")).value || "none",
     scrollback: Math.min(50000, Math.max(500, Number((must<HTMLInputElement>("#cfg-scrollback")).value) || 5000)),
     restoreSession: (must<HTMLSelectElement>("#cfg-restore")).value === "true",
+    defaultCwd: (must<HTMLInputElement>("#cfg-cwd")).value.trim(),
+    shellArgs: (must<HTMLInputElement>("#cfg-args")).value.trim(),
   };
   await invoke("config_save", { config: next });
   applyConfig(next);

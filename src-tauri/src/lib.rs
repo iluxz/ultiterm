@@ -58,6 +58,8 @@ struct SessionState {
 #[serde(default, rename_all = "camelCase")]
 struct UltitermConfig {
     default_shell: String,
+    default_cwd: String,
+    shell_args: String,
     font_size: f32,
     font_family: String,
     cursor_style: String,
@@ -88,6 +90,8 @@ impl Default for UltitermConfig {
         keybinds.insert("commandPalette".into(), "Ctrl+Shift+P".into());
         Self {
             default_shell: default_shell(),
+            default_cwd: std::env::var("USERPROFILE").unwrap_or_default(),
+            shell_args: String::new(),
             font_size: 14.0,
             font_family: "\"Caskaydia Cove Nerd Font\", \"Cascadia Code\", \"JetBrains Mono\", Consolas, monospace".into(),
             cursor_style: "bar".into(),
@@ -229,6 +233,7 @@ fn pty_create(
     rows: u16,
     shell: Option<String>,
     cwd: Option<String>,
+    args: Option<Vec<String>>,
 ) -> Result<String, String> {
     let pty_system = native_pty_system();
     let pair = pty_system
@@ -242,6 +247,11 @@ fn pty_create(
     }
     if shell.to_lowercase().contains("powershell") {
         cmd.arg("-NoLogo");
+    }
+    if let Some(extra) = args {
+        for a in extra.into_iter().filter(|s| !s.trim().is_empty()) {
+            cmd.arg(a);
+        }
     }
 
     let child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
