@@ -123,6 +123,7 @@ function renderTabs() {
     label.textContent = tab.disposed ? `${tab.title} • exited` : tab.title;
     label.ondblclick = (e) => { e.stopPropagation(); renameTab(tab.id); };
     el.onclick = () => activateTab(tab.id);
+    el.oncontextmenu = (e) => { e.preventDefault(); openTabContextMenu(tab.id, e.clientX, e.clientY); };
     const close = document.createElement("button");
     close.className = "tab-close";
     close.type = "button";
@@ -308,6 +309,33 @@ function renderPalette() {
 function openPalette() { paletteModal.classList.remove("hidden"); paletteInput.value = ""; paletteIndex = 0; renderPalette(); setTimeout(() => paletteInput.focus(), 0); }
 function closePalette() { paletteModal.classList.add("hidden"); activeTab()?.term.focus(); }
 
+let ctxMenu: HTMLDivElement | null = null;
+function closeContextMenu() { ctxMenu?.remove(); ctxMenu = null; }
+function openTabContextMenu(tabId: string, x: number, y: number) {
+  closeContextMenu();
+  const tab = tabs.get(tabId); if (!tab) return;
+  const menu = document.createElement("div");
+  menu.className = "ctx-menu";
+  menu.style.left = `${x}px`; menu.style.top = `${y}px`;
+  const items: { label: string; run: () => void | Promise<void> }[] = [
+    { label: "Rename", run: () => renameTab(tabId) },
+    { label: "Duplicate", run: () => createTab(tab.shellPath) },
+    { label: "Restart", run: () => { const sh = tab.shellPath; closeTab(tabId).then(() => createTab(sh)); } },
+    { label: "Close", run: () => closeTab(tabId) },
+  ];
+  for (const item of items) {
+    const btn = document.createElement("button");
+    btn.className = "ctx-item"; btn.type = "button"; btn.textContent = item.label;
+    btn.onclick = async () => { closeContextMenu(); await item.run(); };
+    menu.appendChild(btn);
+  }
+  document.body.appendChild(menu);
+  ctxMenu = menu;
+  const rect = menu.getBoundingClientRect();
+  if (rect.right > window.innerWidth) menu.style.left = `${Math.max(8, window.innerWidth - rect.width - 8)}px`;
+  if (rect.bottom > window.innerHeight) menu.style.top = `${Math.max(8, window.innerHeight - rect.height - 8)}px`;
+}
+
 function openSettings() {
   if (!config) return;
   (must<HTMLSelectElement>("#cfg-shell")).innerHTML = shells.map(s => `<option value="${s.path}">${s.name}</option>`).join("");
@@ -330,11 +358,18 @@ function openSettings() {
   (must<HTMLSelectElement>("#cfg-copy-select")).value = String(config.copyOnSelect ?? false);
   (must<HTMLInputElement>("#cfg-startup")).value = config.startupCommand || "";
   (must<HTMLInputElement>("#cfg-bgimg")).value = config.backgroundImage || "";
+  (must<HTMLTextAreaElement>("#cfg-profiles")).value = JSON.stringify(config.profiles || [], null, 2);
   settingsModal.classList.remove("hidden");
 }
 function closeSettings() { settingsModal.classList.add("hidden"); activeTab()?.term.focus(); }
 async function saveSettings() {
   if (!config) return;
+  let profiles = config.profiles || [];
+  try {
+    const raw = (must<HTMLTextAreaElement>("#cfg-profiles")).value.trim();
+    profiles = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(profiles)) throw new Error("profiles must be an array");
+  } catch (e) { setStatus(`profiles json invalid: ${String(e)}`, "err"); return; }
   const next: Config = {
     ...config,
     defaultShell: (must<HTMLSelectElement>("#cfg-shell")).value,
@@ -356,6 +391,7 @@ async function saveSettings() {
     copyOnSelect: (must<HTMLSelectElement>("#cfg-copy-select")).value === "true",
     startupCommand: (must<HTMLInputElement>("#cfg-startup")).value.trim(),
     backgroundImage: (must<HTMLInputElement>("#cfg-bgimg")).value.trim(),
+    profiles,
   };
   await invoke("config_save", { config: next });
   applyConfig(next);
@@ -422,6 +458,8 @@ async function boot() {
 
   configPathEl.textContent = await invoke<string>("config_path_get").catch(() => "");
   window.addEventListener("resize", () => activeTab()?.fit.fit());
+  window.addEventListener("click", () => closeContextMenu());
+  window.addEventListener("blur", () => closeContextMenu());
   must<HTMLButtonElement>("#new-tab").addEventListener("click", () => createTab().catch((e) => setStatus(String(e), "err")));
   must<HTMLButtonElement>("#settings-btn").addEventListener("click", openSettings);
   must<HTMLButtonElement>("#settings-close").addEventListener("click", closeSettings);

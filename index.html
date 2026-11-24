@@ -61,8 +61,9 @@
             <label>copy on select<select id="cfg-copy-select"><option value="false">off</option><option value="true">on</option></select></label>
             <label class="span2">startup command<input id="cfg-startup" type="text" placeholder="optional command sent on new tab"></label>
             <label class="span2">background image url/path<input id="cfg-bgimg" type="text" placeholder="optional image url"></label>
+            <label class="span2">profiles (JSON array: name,shell,cwd,args,startupCommand)<textarea id="cfg-profiles" rows="5" placeholder='[{"name":"pwsh","shell":"C:\\\\Windows\\\\System32\\\\WindowsPowerShell\\\\v1.0\\\\powershell.exe","cwd":"","args":"","startupCommand":""}]'></textarea></label>
           </div>
-          <div class="modal-actions"><button id="settings-save" class="primary-btn">save config</button><button id="settings-reload" class="ghost-btn wide">reload</button></div>
+          <div class="modal-actions"><span class="modal-hint">quake: Ctrl+Shift+`</span><button id="settings-save" class="primary-btn">save config</button><button id="settings-reload" class="ghost-btn wide">reload</button></div>
         </div>
       </div>
     </div>
