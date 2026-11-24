@@ -89,6 +89,10 @@ impl Default for UltitermConfig {
         keybinds.insert("settings".into(), "Ctrl+,".into());
         keybinds.insert("clear".into(), "Ctrl+K".into());
         keybinds.insert("commandPalette".into(), "Ctrl+Shift+P".into());
+        keybinds.insert("reopenTab".into(), "Ctrl+Shift+T".into());
+        keybinds.insert("zoomIn".into(), "Ctrl+=".into());
+        keybinds.insert("zoomOut".into(), "Ctrl+-".into());
+        keybinds.insert("zoomReset".into(), "Ctrl+0".into());
         Self {
             default_shell: default_shell(),
             default_cwd: std::env::var("USERPROFILE").unwrap_or_default(),

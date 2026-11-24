@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { openPath } from "@tauri-apps/plugin-opener";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
@@ -24,6 +25,7 @@ const tabs = new Map<string, Tab>();
 let activeId: string | null = null;
 let config: Config | null = null;
 let shells: ShellInfo[] = [];
+const closedTabs: { shell: string; title: string }[] = [];
 
 const root = must<HTMLDivElement>("#terminal-root");
 const tabsEl = must<HTMLDivElement>("#tabs");
@@ -113,6 +115,7 @@ function renderTabs() {
     const label = document.createElement("span");
     label.className = "tab-label";
     label.textContent = tab.disposed ? `${tab.title} • exited` : tab.title;
+    label.ondblclick = (e) => { e.stopPropagation(); renameTab(tab.id); };
     el.onclick = () => activateTab(tab.id);
     const close = document.createElement("button");
     close.className = "tab-close";
@@ -137,6 +140,8 @@ function activateTab(id: string) {
 async function closeTab(id: string) {
   const tab = tabs.get(id);
   if (!tab) return;
+  closedTabs.push({ shell: tab.shellPath, title: tab.title });
+  if (closedTabs.length > 20) closedTabs.shift();
   if (!tab.disposed) await invoke("pty_kill", { id }).catch(() => {});
   tab.term.dispose();
   tab.container.remove();
@@ -224,6 +229,19 @@ async function pasteClipboard() {
 
 function clearActive() { activeTab()?.term.clear(); }
 function restartActive() { const tab = activeTab(); if (!tab) return; const shell = tab.shellPath; closeTab(tab.id).then(() => createTab(shell)); }
+function renameTab(id: string) {
+  const tab = tabs.get(id); if (!tab) return;
+  const name = prompt("Rename tab", tab.title);
+  if (name && name.trim()) { tab.title = name.trim().slice(0, 40); renderTabs(); }
+}
+function duplicateTab() { const tab = activeTab(); if (tab) createTab(tab.shellPath); }
+function reopenClosedTab() { const last = closedTabs.pop(); if (last) createTab(last.shell); }
+function zoom(delta: number) {
+  if (!config) return;
+  config.fontSize = Math.min(32, Math.max(10, (config.fontSize || 14) + delta));
+  applyConfig(config); invoke("config_save", { config }).catch(() => {});
+}
+async function openConfigFile() { const p = await invoke<string>("config_path_get").catch(() => ""); if (p) openPath(p).catch(() => {}); }
 function openFind() { findBar.classList.remove("hidden"); findInput.focus(); findInput.select(); }
 function closeFind() { findBar.classList.add("hidden"); activeTab()?.search.clearDecorations(); activeTab()?.term.focus(); }
 function findNext(dir: 1 | -1 = 1) {
@@ -238,14 +256,21 @@ function paletteActions(): PaletteAction[] {
   return [
     { name: "New Tab", meta: binds.newTab || "Ctrl+T", run: () => createTab() },
     { name: "Close Tab", meta: binds.closeTab || "Ctrl+W", run: () => activeId && closeTab(activeId) },
+    { name: "Reopen Closed Tab", meta: binds.reopenTab || "Ctrl+Shift+T", run: reopenClosedTab },
+    { name: "Duplicate Tab", meta: "action", run: duplicateTab },
+    { name: "Rename Tab", meta: "dblclick tab", run: () => activeId && renameTab(activeId) },
     { name: "Next Tab", meta: binds.nextTab || "Ctrl+Tab", run: () => cycleTab(1) },
     { name: "Previous Tab", meta: binds.prevTab || "Ctrl+Shift+Tab", run: () => cycleTab(-1) },
     { name: "Clear Terminal", meta: binds.clear || "Ctrl+K", run: clearActive },
     { name: "Find in Terminal", meta: "Ctrl+F", run: openFind },
     { name: "Restart Session", meta: "action", run: restartActive },
+    { name: "Zoom In", meta: binds.zoomIn || "Ctrl+=", run: () => zoom(1) },
+    { name: "Zoom Out", meta: binds.zoomOut || "Ctrl+-", run: () => zoom(-1) },
+    { name: "Reset Zoom", meta: binds.zoomReset || "Ctrl+0", run: () => { if(config){config.fontSize=14; applyConfig(config); invoke("config_save",{config}).catch(()=>{});} } },
     { name: "Copy Selection", meta: binds.copy || "Ctrl+Shift+C", run: copySelection },
     { name: "Paste Clipboard", meta: binds.paste || "Ctrl+Shift+V", run: pasteClipboard },
     { name: "Open Settings", meta: binds.settings || "Ctrl+,", run: openSettings },
+    { name: "Open Config File", meta: "action", run: openConfigFile },
     { name: "Reload Config", meta: "action", run: async () => { config = await invoke<Config>("config_get"); applyConfig(config); setStatus("config reloaded", "ok"); } },
   ];
 }
@@ -343,6 +368,10 @@ function wireKeyboard() {
     if (matchesBind(e, binds.copy)) { e.preventDefault(); await copySelection(); return; }
     if (matchesBind(e, binds.paste)) { e.preventDefault(); await pasteClipboard(); return; }
     if (matchesBind(e, binds.clear)) { e.preventDefault(); clearActive(); return; }
+    if (matchesBind(e, binds.reopenTab || "Ctrl+Shift+T")) { e.preventDefault(); reopenClosedTab(); return; }
+    if (matchesBind(e, binds.zoomIn || "Ctrl+=") || (e.ctrlKey && e.key === "+")) { e.preventDefault(); zoom(1); return; }
+    if (matchesBind(e, binds.zoomOut || "Ctrl+-")) { e.preventDefault(); zoom(-1); return; }
+    if (matchesBind(e, binds.zoomReset || "Ctrl+0")) { e.preventDefault(); zoom(14 - (config?.fontSize || 14)); return; }
   }, { capture: true });
 }
 
