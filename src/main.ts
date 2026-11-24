@@ -17,7 +17,7 @@ type SessionState = { tabs: SessionTab[]; activeIndex: number };
 type Config = {
   defaultShell: string; defaultCwd: string; shellArgs: string; fontSize: number; fontFamily: string; cursorStyle: "block" | "underline" | "bar";
   cursorBlink: boolean; padding: number; background: string; foreground: string; accent: string; opacity: number; vibrancy: string;
-  scrollback: number; restoreSession: boolean; alwaysOnTop: boolean; lastSession: SessionState; keybinds: Record<string, string>;
+  scrollback: number; restoreSession: boolean; alwaysOnTop: boolean; copyOnSelect: boolean; lastSession: SessionState; keybinds: Record<string, string>;
 };
 type Tab = { id: string; title: string; shellPath: string; term: Terminal; fit: FitAddon; search: SearchAddon; container: HTMLDivElement; disposed: boolean };
 
@@ -202,6 +202,7 @@ async function createTab(shellPath?: string) {
 
   term.onData((data) => { if (!tab.disposed) invoke("pty_write", { id, data }).catch((e) => setStatus(`write failed: ${String(e)}`, "err")); });
   term.onResize(({ cols, rows }) => { if (!tab.disposed) invoke("pty_resize", { id, cols, rows }).catch(() => {}); });
+  term.onSelectionChange(() => { if (config?.copyOnSelect) { const s = term.getSelection(); if (s) navigator.clipboard.writeText(s).catch(() => {}); } });
 
   activateTab(id);
   setStatus("connected", "ok");
@@ -312,6 +313,7 @@ function openSettings() {
   (must<HTMLInputElement>("#cfg-cwd")).value = config.defaultCwd || "";
   (must<HTMLInputElement>("#cfg-args")).value = config.shellArgs || "";
   (must<HTMLSelectElement>("#cfg-aot")).value = String(config.alwaysOnTop ?? false);
+  (must<HTMLSelectElement>("#cfg-copy-select")).value = String(config.copyOnSelect ?? false);
   settingsModal.classList.remove("hidden");
 }
 function closeSettings() { settingsModal.classList.add("hidden"); activeTab()?.term.focus(); }
@@ -335,6 +337,7 @@ async function saveSettings() {
     defaultCwd: (must<HTMLInputElement>("#cfg-cwd")).value.trim(),
     shellArgs: (must<HTMLInputElement>("#cfg-args")).value.trim(),
     alwaysOnTop: (must<HTMLSelectElement>("#cfg-aot")).value === "true",
+    copyOnSelect: (must<HTMLSelectElement>("#cfg-copy-select")).value === "true",
   };
   await invoke("config_save", { config: next });
   applyConfig(next);

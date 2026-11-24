@@ -73,6 +73,7 @@ struct UltitermConfig {
     scrollback: u32,
     restore_session: bool,
     always_on_top: bool,
+    copy_on_select: bool,
     last_session: SessionState,
     keybinds: HashMap<String, String>,
 }
@@ -110,6 +111,7 @@ impl Default for UltitermConfig {
             scrollback: 5000,
             restore_session: true,
             always_on_top: false,
+            copy_on_select: false,
             last_session: SessionState::default(),
             keybinds,
         }
