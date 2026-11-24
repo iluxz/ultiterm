@@ -187,7 +187,8 @@ async function createTab(shellPath?: string) {
   term.attachCustomKeyEventHandler((e) => {
     if (e.type !== "keydown") return true;
     const binds = config?.keybinds || {};
-    if (matchesBind(e, binds.copy) || matchesBind(e, binds.paste) || matchesBind(e, binds.newTab) || matchesBind(e, binds.closeTab) || matchesBind(e, binds.nextTab) || matchesBind(e, binds.prevTab) || matchesBind(e, binds.settings) || matchesBind(e, binds.commandPalette) || matchesBind(e, binds.clear)) return false;
+    const block = [binds.copy, binds.paste, binds.newTab, binds.closeTab, binds.nextTab, binds.prevTab, binds.settings, binds.commandPalette, binds.clear, binds.reopenTab, binds.zoomIn, binds.zoomOut, binds.zoomReset, "Ctrl+F", "Ctrl+Shift+T", "Ctrl+=", "Ctrl+-", "Ctrl+0"];
+    if (block.some(b => matchesBind(e, b))) return false;
     return true;
   });
   container.addEventListener("contextmenu", async (e) => {
@@ -207,6 +208,7 @@ async function createTab(shellPath?: string) {
   term.onData((data) => { if (!tab.disposed) invoke("pty_write", { id, data }).catch((e) => setStatus(`write failed: ${String(e)}`, "err")); });
   term.onResize(({ cols, rows }) => { if (!tab.disposed) invoke("pty_resize", { id, cols, rows }).catch(() => {}); });
   term.onSelectionChange(() => { if (config?.copyOnSelect) { const s = term.getSelection(); if (s) navigator.clipboard.writeText(s).catch(() => {}); } });
+  term.onTitleChange((title) => { if (title?.trim()) { tab.title = title.trim().slice(0, 40); renderTabs(); } });
 
   activateTab(id);
   if (cfg.startupCommand && cfg.startupCommand.trim()) {
