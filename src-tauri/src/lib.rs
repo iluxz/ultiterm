@@ -51,6 +51,9 @@ struct UltitermConfig {
     background: String,
     foreground: String,
     accent: String,
+    opacity: f32,
+    vibrancy: String,
+    scrollback: u32,
     keybinds: HashMap<String, String>,
 }
 
@@ -63,6 +66,9 @@ impl Default for UltitermConfig {
         keybinds.insert("prevTab".into(), "Ctrl+Shift+Tab".into());
         keybinds.insert("copy".into(), "Ctrl+Shift+C".into());
         keybinds.insert("paste".into(), "Ctrl+Shift+V".into());
+        keybinds.insert("settings".into(), "Ctrl+,".into());
+        keybinds.insert("clear".into(), "Ctrl+K".into());
+        keybinds.insert("commandPalette".into(), "Ctrl+Shift+P".into());
         Self {
             default_shell: default_shell(),
             font_size: 14.0,
@@ -73,6 +79,9 @@ impl Default for UltitermConfig {
             background: "#0b0f17".into(),
             foreground: "#d7deea".into(),
             accent: "#a78bfa".into(),
+            opacity: 1.0,
+            vibrancy: "none".into(),
+            scrollback: 5000,
             keybinds,
         }
     }
@@ -87,6 +96,25 @@ struct ShellInfo {
 
 fn default_shell() -> String {
     std::env::var("COMSPEC").unwrap_or_else(|_| "powershell.exe".to_string())
+}
+
+#[tauri::command]
+fn window_set_vibrancy(window: tauri::Window, effect: String, dark: Option<bool>) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        use window_vibrancy::{apply_acrylic, apply_mica, clear_acrylic, clear_mica};
+        let is_dark = dark.unwrap_or(true);
+        let _ = clear_acrylic(&window);
+        let _ = clear_mica(&window);
+        match effect.as_str() {
+            "acrylic" => apply_acrylic(&window, Some((10, 10, 20, 125))).map_err(|e| e.to_string())?,
+            "mica" => apply_mica(&window, Some(is_dark)).map_err(|e| e.to_string())?,
+            _ => {}
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    { let _ = (window, effect, dark); }
+    Ok(())
 }
 
 fn config_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -281,7 +309,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             pty_create, pty_write, pty_resize, pty_kill,
-            config_get, config_save, config_path_get, shells_list
+            config_get, config_save, config_path_get, shells_list, window_set_vibrancy
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

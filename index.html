@@ -25,6 +25,13 @@
       <main class="terminal-shell">
         <div id="terminal-root" class="terminal-root"></div>
       </main>
+      <div id="palette-modal" class="modal hidden">
+        <div class="modal-card palette-card">
+          <div class="modal-head"><div><div class="modal-title">command palette</div><div class="modal-sub">run an Ultiterm action</div></div><button id="palette-close" class="ghost-btn">×</button></div>
+          <input id="palette-input" class="palette-input" type="text" placeholder="Type an action..." autocomplete="off" />
+          <div id="palette-list" class="palette-list"></div>
+        </div>
+      </div>
       <div id="settings-modal" class="modal hidden">
         <div class="modal-card">
           <div class="modal-head"><div><div class="modal-title">settings</div><div id="config-path" class="modal-sub"></div></div><button id="settings-close" class="ghost-btn">×</button></div>
@@ -38,6 +45,9 @@
             <label>accent<input id="cfg-accent" type="color"></label>
             <label>background<input id="cfg-bg" type="color"></label>
             <label>foreground<input id="cfg-fg" type="color"></label>
+            <label>opacity<input id="cfg-opacity" type="number" min="0.2" max="1" step="0.05"></label>
+            <label>vibrancy<select id="cfg-vibrancy"><option value="none">none</option><option value="acrylic">acrylic</option><option value="mica">mica</option></select></label>
+            <label>scrollback<input id="cfg-scrollback" type="number" min="500" max="50000" step="500"></label>
           </div>
           <div class="modal-actions"><button id="settings-save" class="primary-btn">save config</button><button id="settings-reload" class="ghost-btn wide">reload</button></div>
         </div>

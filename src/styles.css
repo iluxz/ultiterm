@@ -126,4 +126,12 @@ body {
 .primary-btn { appearance: none; border: 1px solid rgba(167,139,250,.45); background: linear-gradient(135deg, rgba(167,139,250,.28), rgba(103,232,249,.14)); color: #f4f0ff; padding: 9px 14px; border-radius: 10px; font-weight: 700; cursor: pointer; }
 .primary-btn:hover { filter: brightness(1.08); }
 .ghost-btn.wide { width: auto; padding: 0 12px; font-size: 12px; }
+.palette-card { width: min(680px, calc(100vw - 28px)); padding: 16px; }
+.palette-input { width: 100%; background: rgba(255,255,255,.04); color: var(--text); border: 1px solid rgba(167,139,250,.28); border-radius: 12px; padding: 12px 14px; font: inherit; margin-bottom: 12px; outline: none; }
+.palette-input:focus { border-color: rgba(167,139,250,.55); box-shadow: 0 0 0 3px rgba(167,139,250,.12); }
+.palette-list { display: flex; flex-direction: column; gap: 6px; max-height: min(50vh, 420px); overflow: auto; }
+.palette-item { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 10px; border: 1px solid transparent; background: rgba(255,255,255,.02); cursor: pointer; }
+.palette-item:hover, .palette-item.active { background: rgba(167,139,250,.12); border-color: rgba(167,139,250,.22); }
+.palette-item .name { font-size: 13px; font-weight: 600; color: var(--text); }
+.palette-item .meta { font-size: 11px; color: var(--muted); font-family: Consolas, monospace; }
 @media (max-width: 760px) { .settings-grid { grid-template-columns: 1fr 1fr; } .span2 { grid-column: span 2; } }
