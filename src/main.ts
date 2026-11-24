@@ -3,6 +3,8 @@ import { listen } from "@tauri-apps/api/event";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
+import { SearchAddon } from "@xterm/addon-search";
+import { WebLinksAddon } from "@xterm/addon-web-links";
 // @ts-ignore - xterm ships css side-effect import
 import "@xterm/xterm/css/xterm.css";
 
@@ -14,7 +16,7 @@ type Config = {
   cursorBlink: boolean; padding: number; background: string; foreground: string; accent: string; opacity: number; vibrancy: string;
   scrollback: number; keybinds: Record<string, string>;
 };
-type Tab = { id: string; title: string; shellPath: string; term: Terminal; fit: FitAddon; container: HTMLDivElement; disposed: boolean };
+type Tab = { id: string; title: string; shellPath: string; term: Terminal; fit: FitAddon; search: SearchAddon; container: HTMLDivElement; disposed: boolean };
 
 const tabs = new Map<string, Tab>();
 let activeId: string | null = null;
@@ -31,6 +33,8 @@ const configPathEl = must<HTMLDivElement>("#config-path");
 const paletteModal = must<HTMLDivElement>("#palette-modal");
 const paletteInput = must<HTMLInputElement>("#palette-input");
 const paletteList = must<HTMLDivElement>("#palette-list");
+const findBar = must<HTMLDivElement>("#find-bar");
+const findInput = must<HTMLInputElement>("#find-input");
 
 function must<T extends Element>(sel: string): T {
   const el = document.querySelector(sel);
@@ -149,7 +153,10 @@ async function createTab(shellPath?: string) {
     },
   });
   const fit = new FitAddon();
+  const search = new SearchAddon();
   term.loadAddon(fit);
+  term.loadAddon(search);
+  term.loadAddon(new WebLinksAddon((_e, uri) => window.open(uri, "_blank")));
   const container = document.createElement("div");
   container.style.height = "100%"; container.style.display = "none";
   root.appendChild(container);
@@ -172,7 +179,7 @@ async function createTab(shellPath?: string) {
   container.addEventListener("mousedown", () => term.focus());
 
   const id = await invoke<string>("pty_create", { cols: term.cols, rows: term.rows, shell, cwd: null });
-  const tab: Tab = { id, title: shellName(shell), shellPath: shell, term, fit, container, disposed: false };
+  const tab: Tab = { id, title: shellName(shell), shellPath: shell, term, fit, search, container, disposed: false };
   tabs.set(id, tab);
 
   term.onData((data) => { if (!tab.disposed) invoke("pty_write", { id, data }).catch((e) => setStatus(`write failed: ${String(e)}`, "err")); });
@@ -204,6 +211,12 @@ async function pasteClipboard() {
 
 function clearActive() { activeTab()?.term.clear(); }
 function restartActive() { const tab = activeTab(); if (!tab) return; const shell = tab.shellPath; closeTab(tab.id).then(() => createTab(shell)); }
+function openFind() { findBar.classList.remove("hidden"); findInput.focus(); findInput.select(); }
+function closeFind() { findBar.classList.add("hidden"); activeTab()?.search.clearDecorations(); activeTab()?.term.focus(); }
+function findNext(dir: 1 | -1 = 1) {
+  const tab = activeTab(); const q = findInput.value; if (!tab || !q) return;
+  if (dir === 1) tab.search.findNext(q, { regex: false, caseSensitive: false }); else tab.search.findPrevious(q, { regex: false, caseSensitive: false });
+}
 
 type PaletteAction = { name: string; meta: string; run: () => void | Promise<void> };
 let paletteIndex = 0;
@@ -215,6 +228,7 @@ function paletteActions(): PaletteAction[] {
     { name: "Next Tab", meta: binds.nextTab || "Ctrl+Tab", run: () => cycleTab(1) },
     { name: "Previous Tab", meta: binds.prevTab || "Ctrl+Shift+Tab", run: () => cycleTab(-1) },
     { name: "Clear Terminal", meta: binds.clear || "Ctrl+K", run: clearActive },
+    { name: "Find in Terminal", meta: "Ctrl+F", run: openFind },
     { name: "Restart Session", meta: "action", run: restartActive },
     { name: "Copy Selection", meta: binds.copy || "Ctrl+Shift+C", run: copySelection },
     { name: "Paste Clipboard", meta: binds.paste || "Ctrl+Shift+V", run: pasteClipboard },
@@ -284,6 +298,8 @@ async function saveSettings() {
 
 function wireKeyboard() {
   window.addEventListener("keydown", async (e) => {
+    if (matchesBind(e, "Ctrl+F")) { e.preventDefault(); findBar.classList.contains("hidden") ? openFind() : closeFind(); return; }
+    if (!findBar.classList.contains("hidden") && e.key === "Escape") { e.preventDefault(); closeFind(); return; }
     if (!paletteModal.classList.contains("hidden")) {
       if (e.key === "Escape") { e.preventDefault(); closePalette(); return; }
       if (e.key === "ArrowDown") { e.preventDefault(); paletteIndex++; renderPalette(); return; }
@@ -344,6 +360,11 @@ async function boot() {
   must<HTMLButtonElement>("#palette-close").addEventListener("click", closePalette);
   paletteModal.addEventListener("click", (e) => { if (e.target === paletteModal) closePalette(); });
   paletteInput.addEventListener("input", () => { paletteIndex = 0; renderPalette(); });
+  must<HTMLButtonElement>("#find-close").addEventListener("click", closeFind);
+  must<HTMLButtonElement>("#find-next").addEventListener("click", () => findNext(1));
+  must<HTMLButtonElement>("#find-prev").addEventListener("click", () => findNext(-1));
+  findInput.addEventListener("input", () => findNext(1));
+  findInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); findNext(e.shiftKey ? -1 : 1); } });
   wireKeyboard();
 
   try { await createTab(); }
