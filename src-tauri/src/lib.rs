@@ -74,6 +74,8 @@ struct UltitermConfig {
     restore_session: bool,
     always_on_top: bool,
     copy_on_select: bool,
+    startup_command: String,
+    background_image: String,
     last_session: SessionState,
     keybinds: HashMap<String, String>,
 }
@@ -112,6 +114,8 @@ impl Default for UltitermConfig {
             restore_session: true,
             always_on_top: false,
             copy_on_select: false,
+            startup_command: String::new(),
+            background_image: String::new(),
             last_session: SessionState::default(),
             keybinds,
         }

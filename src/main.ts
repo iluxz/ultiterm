@@ -17,7 +17,7 @@ type SessionState = { tabs: SessionTab[]; activeIndex: number };
 type Config = {
   defaultShell: string; defaultCwd: string; shellArgs: string; fontSize: number; fontFamily: string; cursorStyle: "block" | "underline" | "bar";
   cursorBlink: boolean; padding: number; background: string; foreground: string; accent: string; opacity: number; vibrancy: string;
-  scrollback: number; restoreSession: boolean; alwaysOnTop: boolean; copyOnSelect: boolean; lastSession: SessionState; keybinds: Record<string, string>;
+  scrollback: number; restoreSession: boolean; alwaysOnTop: boolean; copyOnSelect: boolean; startupCommand: string; backgroundImage: string; lastSession: SessionState; keybinds: Record<string, string>;
 };
 type Tab = { id: string; title: string; shellPath: string; term: Terminal; fit: FitAddon; search: SearchAddon; container: HTMLDivElement; disposed: boolean };
 
@@ -86,6 +86,10 @@ function applyConfig(cfg: Config) {
   root.style.padding = `${Math.max(0, cfg.padding - 2)}px`;
   invoke("window_set_vibrancy", { effect: cfg.vibrancy || "none", dark: true }).catch(() => {});
   invoke("window_set_always_on_top", { on: !!cfg.alwaysOnTop }).catch(() => {});
+  const bgImg = (cfg.backgroundImage || "").trim();
+  root.style.backgroundImage = bgImg ? `linear-gradient(rgba(8,11,18,.45), rgba(8,11,18,.65)), url("${bgImg.replace(/"/g, '%22')}")` : "";
+  root.style.backgroundSize = bgImg ? "cover" : "";
+  root.style.backgroundPosition = bgImg ? "center" : "";
   for (const tab of tabs.values()) {
     tab.term.options.fontSize = cfg.fontSize;
     tab.term.options.fontFamily = cfg.fontFamily;
@@ -205,6 +209,9 @@ async function createTab(shellPath?: string) {
   term.onSelectionChange(() => { if (config?.copyOnSelect) { const s = term.getSelection(); if (s) navigator.clipboard.writeText(s).catch(() => {}); } });
 
   activateTab(id);
+  if (cfg.startupCommand && cfg.startupCommand.trim()) {
+    setTimeout(() => { if (!tab.disposed) invoke("pty_write", { id, data: cfg.startupCommand + "\r" }).catch(() => {}); }, 250);
+  }
   setStatus("connected", "ok");
 }
 
@@ -314,6 +321,8 @@ function openSettings() {
   (must<HTMLInputElement>("#cfg-args")).value = config.shellArgs || "";
   (must<HTMLSelectElement>("#cfg-aot")).value = String(config.alwaysOnTop ?? false);
   (must<HTMLSelectElement>("#cfg-copy-select")).value = String(config.copyOnSelect ?? false);
+  (must<HTMLInputElement>("#cfg-startup")).value = config.startupCommand || "";
+  (must<HTMLInputElement>("#cfg-bgimg")).value = config.backgroundImage || "";
   settingsModal.classList.remove("hidden");
 }
 function closeSettings() { settingsModal.classList.add("hidden"); activeTab()?.term.focus(); }
@@ -338,6 +347,8 @@ async function saveSettings() {
     shellArgs: (must<HTMLInputElement>("#cfg-args")).value.trim(),
     alwaysOnTop: (must<HTMLSelectElement>("#cfg-aot")).value === "true",
     copyOnSelect: (must<HTMLSelectElement>("#cfg-copy-select")).value === "true",
+    startupCommand: (must<HTMLInputElement>("#cfg-startup")).value.trim(),
+    backgroundImage: (must<HTMLInputElement>("#cfg-bgimg")).value.trim(),
   };
   await invoke("config_save", { config: next });
   applyConfig(next);
