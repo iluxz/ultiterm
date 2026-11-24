@@ -112,6 +112,8 @@ body {
 .terminal-root .xterm-viewport { overflow-y: auto !important; background: transparent !important; }
 .terminal-root .xterm .xterm-viewport::-webkit-scrollbar { width: 10px; }
 .terminal-root .xterm .xterm-viewport::-webkit-scrollbar-thumb { background: rgba(148,163,184,.28); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+.tab { position: relative; }
+.tab .tab-label { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
 
 .hidden { display: none !important; }
 .modal { position: fixed; inset: 0; background: rgba(2,6,12,.55); backdrop-filter: blur(8px); display: grid; place-items: center; z-index: 50; }
