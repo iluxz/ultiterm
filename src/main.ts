@@ -16,7 +16,7 @@ type SessionState = { tabs: SessionTab[]; activeIndex: number };
 type Config = {
   defaultShell: string; defaultCwd: string; shellArgs: string; fontSize: number; fontFamily: string; cursorStyle: "block" | "underline" | "bar";
   cursorBlink: boolean; padding: number; background: string; foreground: string; accent: string; opacity: number; vibrancy: string;
-  scrollback: number; restoreSession: boolean; lastSession: SessionState; keybinds: Record<string, string>;
+  scrollback: number; restoreSession: boolean; alwaysOnTop: boolean; lastSession: SessionState; keybinds: Record<string, string>;
 };
 type Tab = { id: string; title: string; shellPath: string; term: Terminal; fit: FitAddon; search: SearchAddon; container: HTMLDivElement; disposed: boolean };
 
@@ -83,6 +83,7 @@ function applyConfig(cfg: Config) {
   document.documentElement.style.background = cfg.vibrancy && cfg.vibrancy !== "none" ? "transparent" : cfg.background;
   root.style.padding = `${Math.max(0, cfg.padding - 2)}px`;
   invoke("window_set_vibrancy", { effect: cfg.vibrancy || "none", dark: true }).catch(() => {});
+  invoke("window_set_always_on_top", { on: !!cfg.alwaysOnTop }).catch(() => {});
   for (const tab of tabs.values()) {
     tab.term.options.fontSize = cfg.fontSize;
     tab.term.options.fontFamily = cfg.fontFamily;
@@ -285,6 +286,7 @@ function openSettings() {
   (must<HTMLSelectElement>("#cfg-restore")).value = String(config.restoreSession ?? true);
   (must<HTMLInputElement>("#cfg-cwd")).value = config.defaultCwd || "";
   (must<HTMLInputElement>("#cfg-args")).value = config.shellArgs || "";
+  (must<HTMLSelectElement>("#cfg-aot")).value = String(config.alwaysOnTop ?? false);
   settingsModal.classList.remove("hidden");
 }
 function closeSettings() { settingsModal.classList.add("hidden"); activeTab()?.term.focus(); }
@@ -307,6 +309,7 @@ async function saveSettings() {
     restoreSession: (must<HTMLSelectElement>("#cfg-restore")).value === "true",
     defaultCwd: (must<HTMLInputElement>("#cfg-cwd")).value.trim(),
     shellArgs: (must<HTMLInputElement>("#cfg-args")).value.trim(),
+    alwaysOnTop: (must<HTMLSelectElement>("#cfg-aot")).value === "true",
   };
   await invoke("config_save", { config: next });
   applyConfig(next);

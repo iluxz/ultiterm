@@ -72,6 +72,7 @@ struct UltitermConfig {
     vibrancy: String,
     scrollback: u32,
     restore_session: bool,
+    always_on_top: bool,
     last_session: SessionState,
     keybinds: HashMap<String, String>,
 }
@@ -104,6 +105,7 @@ impl Default for UltitermConfig {
             vibrancy: "none".into(),
             scrollback: 5000,
             restore_session: true,
+            always_on_top: false,
             last_session: SessionState::default(),
             keybinds,
         }
@@ -210,6 +212,11 @@ fn config_path_get(state: State<'_, ConfigState>) -> String {
 fn config_save(state: State<'_, ConfigState>, config: UltitermConfig) -> Result<(), String> {
     let raw = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
     fs::write(&state.path, raw).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn window_set_always_on_top(window: tauri::Window, on: bool) -> Result<(), String> {
+    window.set_always_on_top(on).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -346,7 +353,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             pty_create, pty_write, pty_resize, pty_kill,
-            config_get, config_save, config_path_get, shells_list, window_set_vibrancy, session_save
+            config_get, config_save, config_path_get, shells_list, window_set_vibrancy, session_save, window_set_always_on_top
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
