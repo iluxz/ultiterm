@@ -46,6 +46,8 @@ struct SessionTab {
     shell: String,
     title: String,
     cwd: Option<String>,
+    #[serde(default)]
+    layout: serde_json::Value,
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]
@@ -87,6 +89,8 @@ struct UltitermConfig {
     copy_on_select: bool,
     startup_command: String,
     background_image: String,
+    quake_height: f32,
+    quake_width: f32,
     profiles: Vec<Profile>,
     last_session: SessionState,
     keybinds: HashMap<String, String>,
@@ -128,6 +132,8 @@ impl Default for UltitermConfig {
             copy_on_select: false,
             startup_command: String::new(),
             background_image: String::new(),
+            quake_height: 0.55,
+            quake_width: 0.96,
             profiles: Vec::new(),
             last_session: SessionState::default(),
             keybinds,
@@ -363,6 +369,7 @@ fn start_config_watcher(app: AppHandle, path: PathBuf) -> Option<RecommendedWatc
 
 #[tauri::command]
 fn quake_toggle(app: AppHandle) -> Result<(), String> {
+    let cfg = config_path(&app).map(|p| load_or_create_config(&p)).unwrap_or_default();
     if let Some(win) = app.get_webview_window("main") {
         let visible = win.is_visible().unwrap_or(true);
         if visible {
@@ -371,13 +378,16 @@ fn quake_toggle(app: AppHandle) -> Result<(), String> {
             if let Ok(Some(monitor)) = win.current_monitor() {
                 let size = monitor.size();
                 let pos = monitor.position();
-                let width = (size.width as f64 * 0.96) as u32;
-                let height = (size.height as f64 * 0.55) as u32;
+                let qw = cfg.quake_width.clamp(0.4, 1.0) as f64;
+                let qh = cfg.quake_height.clamp(0.2, 1.0) as f64;
+                let width = (size.width as f64 * qw) as u32;
+                let height = (size.height as f64 * qh) as u32;
                 let x = pos.x + ((size.width as i32 - width as i32) / 2);
                 let y = pos.y;
                 let _ = win.set_size(tauri::Size::Physical(tauri::PhysicalSize { width, height }));
                 let _ = win.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }));
             }
+            let _ = win.set_always_on_top(true);
             let _ = win.show();
             let _ = win.set_focus();
         }

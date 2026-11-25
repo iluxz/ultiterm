@@ -59,9 +59,21 @@
             <label class="span2">shell args<input id="cfg-args" type="text" placeholder="e.g. -NoExit -Command ..."></label>
             <label>always on top<select id="cfg-aot"><option value="false">off</option><option value="true">on</option></select></label>
             <label>copy on select<select id="cfg-copy-select"><option value="false">off</option><option value="true">on</option></select></label>
+            <label>quake width<input id="cfg-quake-w" type="number" min="0.4" max="1" step="0.02"></label>
+            <label>quake height<input id="cfg-quake-h" type="number" min="0.2" max="1" step="0.02"></label>
             <label class="span2">startup command<input id="cfg-startup" type="text" placeholder="optional command sent on new tab"></label>
             <label class="span2">background image url/path<input id="cfg-bgimg" type="text" placeholder="optional image url"></label>
-            <label class="span2">profiles (JSON array: name,shell,cwd,args,startupCommand)<textarea id="cfg-profiles" rows="5" placeholder='[{"name":"pwsh","shell":"C:\\\\Windows\\\\System32\\\\WindowsPowerShell\\\\v1.0\\\\powershell.exe","cwd":"","args":"","startupCommand":""}]'></textarea></label>
+            <div class="span2 profiles-editor">
+              <div class="profiles-head"><span>profiles</span><div class="profiles-actions"><select id="cfg-profile-select"></select><button id="profile-add" class="ghost-btn wide" type="button">add</button><button id="profile-del" class="ghost-btn wide" type="button">delete</button></div></div>
+              <div class="profiles-grid">
+                <label>name<input id="profile-name" type="text" placeholder="dev shell"></label>
+                <label>shell<input id="profile-shell" type="text" placeholder="C:\\...\\powershell.exe"></label>
+                <label>cwd<input id="profile-cwd" type="text" placeholder="C:\\repo"></label>
+                <label>args<input id="profile-args" type="text" placeholder="-NoLogo"></label>
+                <label class="span2">startup command<input id="profile-startup" type="text" placeholder="optional"></label>
+              </div>
+              <div class="profiles-foot"><button id="profile-launch" class="ghost-btn wide" type="button">launch profile</button><span class="modal-hint">profiles are saved with config</span></div>
+            </div>
           </div>
           <div class="modal-actions"><span class="modal-hint">quake: Ctrl+Shift+`</span><button id="settings-save" class="primary-btn">save config</button><button id="settings-reload" class="ghost-btn wide">reload</button></div>
         </div>

@@ -12,13 +12,15 @@ import "@xterm/xterm/css/xterm.css";
 type PtyOutput = { id: string; data: string };
 type PtyExit = { id: string; code?: number | null };
 type ShellInfo = { id: string; name: string; path: string };
-type SessionTab = { shell: string; title: string; cwd?: string | null };
+type SessionLayoutNode = { type: "leaf"; shell: string; title: string; cwd?: string | null } | { type: "split"; dir: "row" | "col"; ratio: number; a: SessionLayoutNode; b: SessionLayoutNode };
+type SessionTab = { shell: string; title: string; cwd?: string | null; layout?: SessionLayoutNode | null };
 type SessionState = { tabs: SessionTab[]; activeIndex: number };
 type Profile = { name: string; shell: string; cwd: string; args: string; startupCommand: string };
 type Config = {
   defaultShell: string; defaultCwd: string; shellArgs: string; fontSize: number; fontFamily: string; cursorStyle: "block" | "underline" | "bar";
   cursorBlink: boolean; padding: number; background: string; foreground: string; accent: string; opacity: number; vibrancy: string;
   scrollback: number; restoreSession: boolean; alwaysOnTop: boolean; copyOnSelect: boolean; startupCommand: string; backgroundImage: string;
+  quakeHeight: number; quakeWidth: number;
   profiles: Profile[]; lastSession: SessionState; keybinds: Record<string, string>;
 };
 type Pane = { id: string; term: Terminal; fit: FitAddon; search: SearchAddon; container: HTMLDivElement; disposed: boolean; shellPath: string; title: string; opened: boolean };
@@ -124,11 +126,19 @@ function removeLeaf(node: LayoutNode, paneId: string): LayoutNode | null {
 }
 
 
+function serializeLayout(tab: Tab, node: LayoutNode): SessionLayoutNode {
+  if (node.type === "leaf") {
+    const p = tab.panes.get(node.paneId);
+    return { type: "leaf", shell: p?.shellPath || config?.defaultShell || "", title: p?.title || tab.title, cwd: null };
+  }
+  return { type: "split", dir: node.dir, ratio: node.ratio, a: serializeLayout(tab, node.a), b: serializeLayout(tab, node.b) };
+}
+
 function persistSession() {
   if (!config) return;
   const list = [...tabs.values()].map(t => {
     const p = t.panes.get(t.activePaneId) || [...t.panes.values()][0];
-    return { shell: p?.shellPath || config?.defaultShell || "", title: t.title, cwd: null };
+    return { shell: p?.shellPath || config?.defaultShell || "", title: t.title, cwd: null, layout: serializeLayout(t, t.root) };
   });
   const activeIndex = Math.max(0, [...tabs.keys()].indexOf(activeId || ""));
   invoke("session_save", { session: { tabs: list, activeIndex } }).catch(() => {});
@@ -297,16 +307,31 @@ async function spawnPane(tab: Tab, shellPath?: string, opts?: { cwd?: string | n
   return pane;
 }
 
-async function createTab(shellPath?: string, opts?: { cwd?: string | null; args?: string[]; startup?: string; title?: string }) {
+async function buildLayout(tab: Tab, node: SessionLayoutNode): Promise<LayoutNode> {
+  if (node.type === "leaf") {
+    const pane = await spawnPane(tab, node.shell, { cwd: node.cwd, title: node.title });
+    return { type: "leaf", paneId: pane.id };
+  }
+  const a = await buildLayout(tab, node.a);
+  const b = await buildLayout(tab, node.b);
+  return { type: "split", dir: node.dir, ratio: typeof node.ratio === "number" ? node.ratio : 0.5, a, b };
+}
+
+async function createTab(shellPath?: string, opts?: { cwd?: string | null; args?: string[]; startup?: string; title?: string; layout?: SessionLayoutNode | null }) {
   const tabId = crypto.randomUUID();
   const container = document.createElement("div");
   container.className = "tab-root"; container.style.height = "100%"; container.style.display = "none";
   root.appendChild(container);
   const tab: Tab = { id: tabId, title: opts?.title || shellName(shellPath || config?.defaultShell || "shell"), container, root: { type: "leaf", paneId: "" }, panes: new Map(), activePaneId: "" };
-  const pane = await spawnPane(tab, shellPath, opts);
-  tab.root = { type: "leaf", paneId: pane.id }; tab.activePaneId = pane.id; tab.title = opts?.title || pane.title;
+  if (opts?.layout) {
+    tab.root = await buildLayout(tab, opts.layout);
+    tab.activePaneId = layoutLeaves(tab.root)[0];
+  } else {
+    const pane = await spawnPane(tab, shellPath, opts);
+    tab.root = { type: "leaf", paneId: pane.id }; tab.activePaneId = pane.id; tab.title = opts?.title || pane.title;
+  }
   tabs.set(tabId, tab);
-  renderTabLayout(tab); activateTab(tabId); fitTab(tab); focusPane(tab, pane.id);
+  renderTabLayout(tab); activateTab(tabId); fitTab(tab); focusPane(tab, tab.activePaneId);
   setStatus("connected", "ok");
   return tab;
 }
@@ -470,20 +495,64 @@ function openSettings() {
   (must<HTMLInputElement>("#cfg-args")).value = config.shellArgs || "";
   (must<HTMLSelectElement>("#cfg-aot")).value = String(config.alwaysOnTop ?? false);
   (must<HTMLSelectElement>("#cfg-copy-select")).value = String(config.copyOnSelect ?? false);
+  (must<HTMLInputElement>("#cfg-quake-w")).value = String(config.quakeWidth ?? 0.96);
+  (must<HTMLInputElement>("#cfg-quake-h")).value = String(config.quakeHeight ?? 0.55);
   (must<HTMLInputElement>("#cfg-startup")).value = config.startupCommand || "";
   (must<HTMLInputElement>("#cfg-bgimg")).value = config.backgroundImage || "";
-  (must<HTMLTextAreaElement>("#cfg-profiles")).value = JSON.stringify(config.profiles || [], null, 2);
+  loadProfilesUI(config.profiles || []);
   settingsModal.classList.remove("hidden");
 }
+let editingProfiles: Profile[] = [];
+let editingProfileIndex = 0;
+
+function readProfileForm(): Profile {
+  return {
+    name: (must<HTMLInputElement>("#profile-name")).value.trim(),
+    shell: (must<HTMLInputElement>("#profile-shell")).value.trim(),
+    cwd: (must<HTMLInputElement>("#profile-cwd")).value.trim(),
+    args: (must<HTMLInputElement>("#profile-args")).value.trim(),
+    startupCommand: (must<HTMLInputElement>("#profile-startup")).value.trim(),
+  };
+}
+function writeProfileForm(p?: Profile) {
+  (must<HTMLInputElement>("#profile-name")).value = p?.name || "";
+  (must<HTMLInputElement>("#profile-shell")).value = p?.shell || config?.defaultShell || "";
+  (must<HTMLInputElement>("#profile-cwd")).value = p?.cwd || "";
+  (must<HTMLInputElement>("#profile-args")).value = p?.args || "";
+  (must<HTMLInputElement>("#profile-startup")).value = p?.startupCommand || "";
+}
+function syncEditingProfile() {
+  if (!editingProfiles.length) return;
+  editingProfiles[editingProfileIndex] = readProfileForm();
+}
+function renderProfilesSelect() {
+  const sel = must<HTMLSelectElement>("#cfg-profile-select");
+  sel.innerHTML = "";
+  if (!editingProfiles.length) {
+    const opt = document.createElement("option"); opt.value = "-1"; opt.textContent = "no profiles"; sel.appendChild(opt); sel.disabled = true; return;
+  }
+  sel.disabled = false;
+  editingProfiles.forEach((p, i) => { const opt = document.createElement("option"); opt.value = String(i); opt.textContent = p.name || `profile ${i + 1}`; sel.appendChild(opt); });
+  sel.value = String(Math.min(editingProfileIndex, editingProfiles.length - 1));
+}
+function loadProfilesUI(profiles: Profile[]) {
+  editingProfiles = profiles.map(p => ({ name: p.name || "", shell: p.shell || "", cwd: p.cwd || "", args: p.args || "", startupCommand: p.startupCommand || "" }));
+  editingProfileIndex = 0;
+  renderProfilesSelect();
+  writeProfileForm(editingProfiles[0]);
+}
+function selectProfile(i: number) {
+  syncEditingProfile();
+  editingProfileIndex = Math.max(0, Math.min(i, Math.max(0, editingProfiles.length - 1)));
+  renderProfilesSelect();
+  writeProfileForm(editingProfiles[editingProfileIndex]);
+}
+
 function closeSettings() { settingsModal.classList.add("hidden"); activePane()?.term.focus(); }
 async function saveSettings() {
   if (!config) return;
-  let profiles = config.profiles || [];
-  try {
-    const raw = (must<HTMLTextAreaElement>("#cfg-profiles")).value.trim();
-    profiles = raw ? JSON.parse(raw) : [];
-    if (!Array.isArray(profiles)) throw new Error("profiles must be an array");
-  } catch (e) { setStatus(`profiles json invalid: ${String(e)}`, "err"); return; }
+  syncEditingProfile();
+  const profiles = editingProfiles.filter(p => p.name || p.shell || p.cwd || p.args || p.startupCommand).map(p => ({ ...p, name: p.name || "profile" }));
   const next: Config = {
     ...config,
     defaultShell: (must<HTMLSelectElement>("#cfg-shell")).value,
@@ -503,6 +572,8 @@ async function saveSettings() {
     shellArgs: (must<HTMLInputElement>("#cfg-args")).value.trim(),
     alwaysOnTop: (must<HTMLSelectElement>("#cfg-aot")).value === "true",
     copyOnSelect: (must<HTMLSelectElement>("#cfg-copy-select")).value === "true",
+    quakeWidth: Math.min(1, Math.max(0.4, Number((must<HTMLInputElement>("#cfg-quake-w")).value) || 0.96)),
+    quakeHeight: Math.min(1, Math.max(0.2, Number((must<HTMLInputElement>("#cfg-quake-h")).value) || 0.55)),
     startupCommand: (must<HTMLInputElement>("#cfg-startup")).value.trim(),
     backgroundImage: (must<HTMLInputElement>("#cfg-bgimg")).value.trim(),
     profiles,
@@ -579,6 +650,10 @@ async function boot() {
   must<HTMLButtonElement>("#settings-close").addEventListener("click", closeSettings);
   must<HTMLButtonElement>("#settings-save").addEventListener("click", () => saveSettings().catch(e => setStatus(String(e), "err")));
   must<HTMLButtonElement>("#settings-reload").addEventListener("click", async () => { config = await invoke<Config>("config_get"); applyConfig(config); openSettings(); setStatus("config reloaded", "ok"); });
+  must<HTMLSelectElement>("#cfg-profile-select").addEventListener("change", (e) => selectProfile(Number((e.target as HTMLSelectElement).value)));
+  must<HTMLButtonElement>("#profile-add").addEventListener("click", () => { syncEditingProfile(); editingProfiles.push({ name: `profile ${editingProfiles.length + 1}`, shell: config?.defaultShell || "", cwd: config?.defaultCwd || "", args: "", startupCommand: "" }); editingProfileIndex = editingProfiles.length - 1; renderProfilesSelect(); writeProfileForm(editingProfiles[editingProfileIndex]); });
+  must<HTMLButtonElement>("#profile-del").addEventListener("click", () => { if (!editingProfiles.length) return; editingProfiles.splice(editingProfileIndex, 1); editingProfileIndex = Math.max(0, editingProfileIndex - 1); renderProfilesSelect(); writeProfileForm(editingProfiles[editingProfileIndex]); });
+  must<HTMLButtonElement>("#profile-launch").addEventListener("click", async () => { syncEditingProfile(); const p = editingProfiles[editingProfileIndex]; if (!p) return; const args = p.args.trim() ? (p.args.match(/(?:[^\s"]+|"[^"]*")+/g) || []).map(s=>s.replace(/^"|"$/g,"")) : []; await createTab(p.shell || config?.defaultShell, { cwd: p.cwd || null, args, startup: p.startupCommand, title: p.name || undefined }).catch(err => setStatus(String(err),"err")); });
   settingsModal.addEventListener("click", (e) => { if (e.target === settingsModal) closeSettings(); });
   must<HTMLButtonElement>("#palette-close").addEventListener("click", closePalette);
   paletteModal.addEventListener("click", (e) => { if (e.target === paletteModal) closePalette(); });
@@ -593,7 +668,7 @@ async function boot() {
   try {
     const restore = config.restoreSession && config.lastSession?.tabs?.length;
     if (restore) {
-      for (const t of config.lastSession.tabs) await createTab(t.shell || config.defaultShell);
+      for (const t of config.lastSession.tabs) await createTab(t.shell || config.defaultShell, { title: t.title, cwd: t.cwd || null, layout: t.layout || null });
       const ids = [...tabs.keys()];
       const target = ids[Math.min(config.lastSession.activeIndex || 0, ids.length - 1)];
       if (target) activateTab(target);
